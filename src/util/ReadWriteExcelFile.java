@@ -1,5 +1,6 @@
 package util;
 
+import java.awt.Color;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -7,24 +8,26 @@ import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 
-import org.apache.poi.hssf.usermodel.HSSFCell;
-import org.apache.poi.hssf.usermodel.HSSFRow;
-import org.apache.poi.hssf.usermodel.HSSFSheet;
-import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.xssf.usermodel.XSSFCell;
+import org.apache.poi.xssf.usermodel.XSSFCellStyle;
+import org.apache.poi.xssf.usermodel.XSSFColor;
+import org.apache.poi.xssf.usermodel.XSSFFont;
 import org.apache.poi.xssf.usermodel.XSSFRow;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -33,77 +36,158 @@ import conf.Configuration;
 import db.BaseLine;
 import db.DatbaseConnection;
 import db.LogStats;
-import db.Report;
+
 
 public class ReadWriteExcelFile {
-
-	public static void readXLSFile() throws IOException
-	{
-		InputStream ExcelFileToRead = new FileInputStream("C:/Test.xls");
-		HSSFWorkbook wb = new HSSFWorkbook(ExcelFileToRead);
-
-		HSSFSheet sheet=wb.getSheetAt(0);
-		HSSFRow row; 
-		HSSFCell cell;
-
-		Iterator rows = sheet.rowIterator();
-
-		while (rows.hasNext())
-		{
-			row=(HSSFRow) rows.next();
-			Iterator cells = row.cellIterator();
-			
-			while (cells.hasNext())
-			{
-				cell=(HSSFCell) cells.next();
-		
-				if (cell.getCellType() == HSSFCell.CELL_TYPE_STRING)
-				{
-					System.out.print(cell.getStringCellValue()+" ");
-				}
-				else if(cell.getCellType() == HSSFCell.CELL_TYPE_NUMERIC)
-				{
-					System.out.print(cell.getNumericCellValue()+" ");
-				}
-				else
-				{
-					//U Can Handel Boolean, Formula, Errors
-				}
-			}
-			System.out.println();
-		}
 	
+	public static void writeDeviceReport(String status) throws ClassNotFoundException, SQLException, IOException, ParseException {
+		String excelFileName = getSaveExcelFileConfig()+status+".xlsx";  //"D:/Test.xlsx";//name of excel file
+
+		String sheetName = getExcelSheetFileConfig();//"DeviceinventoryReport";//name of sheet
+
+		XSSFWorkbook wb = new XSSFWorkbook();
+		XSSFSheet sheet = wb.createSheet(sheetName);
+
+		Connection connect = DatbaseConnection.getConnection();
+		PreparedStatement ps = null;
+			
+       try {
+    	   String sql = "";
+    	   if(status.equals("0")) {
+    		   sql = "select  NoLogDecoder, CollectorName, DeviceType, DeviceIP, LogCoder, LastSeenTime, Count, DATE_FORMAT(datemodified, '%Y-%m-%d %T') as DateModified From deviceinventoryreport where IsNormal = 0 and LogCoder IS NOT NULL";
+    	   }else if(status.equals("1")) {
+    		   sql = "select  NoLogDecoder, CollectorName, DeviceType, DeviceIP, LogCoder, LastSeenTime, Count, DATE_FORMAT(datemodified, '%Y-%m-%d %T') as DateModified From deviceinventoryreport where IsNormal = 1 and LogCoder IS NOT NULL";
+    	   }else {
+    		   sql = "select  NoLogDecoder, CollectorName, DeviceType, DeviceIP, LogCoder, LastSeenTime, Count, DATE_FORMAT(datemodified, '%Y-%m-%d %T') as DateModified  From deviceinventoryreport and LogCoder IS NOT NULL";
+    	   }
+    	   
+    	   ps = connect.prepareStatement(sql);
+           
+           ResultSet resultSet = ps.executeQuery();
+           
+           ResultSetMetaData rsmd = resultSet.getMetaData();
+
+           int numOfCols = rsmd.getColumnCount();
+           int numOfRows = 0 ;
+           XSSFRow row = sheet.createRow(numOfRows);
+           XSSFCell cell = null ;
+           
+           XSSFCellStyle cellStyle = wb.createCellStyle();
+         
+           XSSFColor myColor = new XSSFColor(Color.YELLOW);
+           XSSFFont font= wb.createFont();
+           font.setBold(true);
+           font.setFontHeightInPoints((short)11);
+           font.setFontName("Tahoma");
+           
+           cellStyle.setFillForegroundColor(myColor);
+           cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+           cellStyle.setFont(font);
+           
+           cell = row.createCell(0);
+           cell.setCellValue("NoLogDecoder");
+           cell.setCellStyle(cellStyle);
+		   
+           cell = row.createCell(1);
+           cell.setCellValue("CollectorName");
+           cell.setCellStyle(cellStyle);
+           
+           cell = row.createCell(2);
+           cell.setCellValue("DeviceType");
+           cell.setCellStyle(cellStyle);
+           
+           cell = row.createCell(3);
+           cell.setCellValue("DeviceIP");
+           cell.setCellStyle(cellStyle);
+           
+           cell = row.createCell(4);
+           cell.setCellValue("LogCoder");
+           cell.setCellStyle(cellStyle);
+           
+           cell = row.createCell(5);
+           cell.setCellValue("LastSeenTime");
+           cell.setCellStyle(cellStyle);
+           
+           cell = row.createCell(6);
+           cell.setCellValue("Count");
+           cell.setCellStyle(cellStyle);
+           
+           cell = row.createCell(7);
+           cell.setCellValue("DateModified");
+           cell.setCellStyle(cellStyle);
+           
+           while(resultSet.next()){
+        	   numOfRows ++;
+        	   row = sheet.createRow(numOfRows);
+        	   
+        	   for (int c=0;c < numOfCols; c++ ) {
+        		   cell = row.createCell(c);
+        		   cell.setCellValue(resultSet.getString(c+1));
+        	   }
+     
+        	}  
+           
+        FileOutputStream fileOut = new FileOutputStream(excelFileName);
+   		
+   		//write this workbook to an Outputstream.
+   		wb.write(fileOut);
+   		fileOut.flush();
+   		fileOut.close();
+   		
+   		
+   		System.out.println("Write File Completed!!!");
+       } catch (SQLException e) {
+           e.printStackTrace();
+       }finally{
+			try {
+				connect.close();
+			} catch (SQLException e) {
+			}			
+		}
 	}
 	
-	public static void writeXLSFile() throws IOException {
+	public static String getExcelSheetFileConfig() throws IOException {
+		String path1 = Configuration.pathDEV; //"C:\\temp\\";
+		String path2 = Configuration.pathPROD; //"/apps/";
 		
-		String excelFileName = "C:/Test.xls";//name of excel file
-
-		String sheetName = "Sheet1";//name of sheet
-
-		HSSFWorkbook wb = new HSSFWorkbook();
-		HSSFSheet sheet = wb.createSheet(sheetName) ;
-
-		//iterating r number of rows
-		for (int r=0;r < 5; r++ )
-		{
-			HSSFRow row = sheet.createRow(r);
+		Properties prop = new Properties();
+		InputStream input = null;
 	
-			//iterating c number of columns
-			for (int c=0;c < 5; c++ )
-			{
-				HSSFCell cell = row.createCell(c);
-				
-				cell.setCellValue("Cell "+r+" "+c);
-			}
-		}
+		String filename = Configuration.fileConfiguration;
+		String sheetFileExcel = "";
 		
-		FileOutputStream fileOut = new FileOutputStream(excelFileName);
+		try{
+			input = new FileInputStream(path1+filename);
+	 	}catch(Exception e){
+	 		input = new FileInputStream(path2+filename);
+	 	}
 		
-		//write this workbook to an Outputstream.
-		wb.write(fileOut);
-		fileOut.flush();
-		fileOut.close();
+		prop.load(input);
+		sheetFileExcel = prop.getProperty("sheetExcelName"); 
+		
+		return sheetFileExcel;
+	}
+	
+	public static String getSaveExcelFileConfig() throws IOException {
+		String path1 = Configuration.pathDEV; //"C:\\temp\\";
+		String path2 = Configuration.pathPROD; //"/apps/";
+		
+		Properties prop = new Properties();
+		InputStream input = null;
+	
+		String filename = Configuration.fileConfiguration;
+		String saveFileExcel = "";
+		
+		try{
+			input = new FileInputStream(path1+filename);
+	 	}catch(Exception e){
+	 		input = new FileInputStream(path2+filename);
+	 	}
+		
+		prop.load(input);
+		saveFileExcel = prop.getProperty("saveFileExcel"); 
+		
+		return saveFileExcel;
 	}
 	
 	public static String getFileLogStatConfig() throws IOException {
@@ -640,7 +724,7 @@ public class ReadWriteExcelFile {
 	}
 	
 	public static void saveReportToDB(boolean normal) throws ClassNotFoundException, IOException, SQLException{
-		RemoveReport(normal);
+		//RemoveReport(normal);
 		System.out.println("Start to Save Report !!!");
 		Connection connect = DatbaseConnection.getConnection();
 		PreparedStatement ps = null;
@@ -656,13 +740,12 @@ public class ReadWriteExcelFile {
 			
 			System.out.println("listOfIP " + listOfIP);
 		
-		
-		
     	   String sql = " select lg.NoLogDecoder, lg.CollectorName, lg.DeviceType, lg.DeviceIP, \r\n" + 
     	   		"   (select ag.logCoder from agencyindex ag where lg.NoLogDecoder = ag.NoLogDecoder and lg.CollectorName = ag.collectorName) as LogCoder, \r\n" + 
     	   		"   lg.LastSeenTime, lg.Count" + 
-    	   		"   from logstats lg where \r\n" + 
-    	   		"	lg.DeviceIP in (" + listOfIP + ")";
+    	   		"   from logstats lg inner join baseline bs on lg.DeviceIP = bs.Source and lg.CollectorName = bs.Forwarder and lg.DeviceType = bs.Device" +
+    	   	    "   where \r\n" + 
+    	   		"	lg.DeviceIP in (" + listOfIP + ")  and bs.`Status` <> 0";
     	   
            ps = connect.prepareStatement(sql);
            //ps.setString(1, listOfIP);
@@ -708,7 +791,7 @@ public class ReadWriteExcelFile {
 		PreparedStatement ps = null;
 			
        try {
-    	   String sql = "select distinct Forwarder, Device, Source, Status  From baseLine";
+    	   String sql = "select distinct Forwarder, Device, Source, Status  from baseLine";
            ps = connect.prepareStatement(sql);
            
            ResultSet resultSet = ps.executeQuery();
@@ -754,8 +837,8 @@ public class ReadWriteExcelFile {
 			
       try {
 
-          String sql = "insert into  deviceinventoryreport(NoLogDecoder, CollectorName, DeviceType, DeviceIP, LogCoder, LastSeenTime, Count, Isnormal) "
-          			 + "values ( ?, ?, ?, ?, ?, ?, ? , ?)";
+          String sql = "insert into  deviceinventoryreport(NoLogDecoder, CollectorName, DeviceType, DeviceIP, LogCoder, LastSeenTime, Count, Isnormal, DateModified) "
+          			 + "values ( ?, ?, ?, ?, ?, ?, ?, ?, now())";
           ps = connect.prepareStatement(sql);
           ps.setString(1, NoLogDecoder);
           ps.setString(2, CollectorName);
@@ -765,6 +848,7 @@ public class ReadWriteExcelFile {
           ps.setString(6, LastSeenTime);
           ps.setString(7, Count);
           ps.setInt(8, normal);
+          
           
           ps.executeUpdate();
           connect.close();
@@ -792,7 +876,7 @@ public class ReadWriteExcelFile {
 			
 			for (Map.Entry<String, BaseLine> entryBase : mapBase.entrySet()) {
 				String [] key = entryBase.getKey().split(",");
-				String entry2 =  keys[0] + keys[1] + keys[2];
+				String entry2 =  key[0] + key[1] + key[2];
 				String status = key[3];
 				
 				if(entry1.equals(entry2)) {
@@ -833,17 +917,20 @@ public class ReadWriteExcelFile {
 		
 		//String fileAgencyToDB = getFileAgencyConfig();
 		//readFileAndPutAgencyToDB(fileAgencyToDB);
-		
-		/*Map<String, String> log = getDataCompareBaseLine(false);
+		String listOfIP = "";
+		Map<String, String> log = getDataCompareBaseLine(false);
 		for (Map.Entry<String, String> entry : log.entrySet()) {
-			System.out.println(  " KEY "  + entry.getKey());
-		}*/
+			System.out.println(  " KEY "  + entry.getKey() + " VAL " + entry.getValue() );
+			listOfIP = listOfIP + "'" + entry.getValue() + "',";
+		}
 		
+		
+		System.out.println(" listOfIP " + listOfIP);
 		
 		//Map<String, Report> rep = getMapReport();
 		
-		saveReportToDB(true);
-		saveReportToDB(false);
+		//saveReportToDB(true);
+		//saveReportToDB(false);
 		
 	
 	}
