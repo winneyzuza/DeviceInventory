@@ -41,9 +41,9 @@ import db.LogStats;
 public class ReadWriteExcelFile {
 	
 	public static void writeDeviceReport(String status) throws ClassNotFoundException, SQLException, IOException, ParseException {
-		String excelFileName = getSaveExcelFileConfig()+status+".xlsx";  //"D:/Test.xlsx";//name of excel file
+		String excelFileName = getInfoByFileConfig("saveFileExcel")+status+".xlsx";  //"D:/Test.xlsx";//name of excel file
 
-		String sheetName = getExcelSheetFileConfig();//"DeviceinventoryReport";//name of sheet
+		String sheetName = getInfoByFileConfig("sheetExcelName");//"DeviceinventoryReport";//name of sheet
 
 		XSSFWorkbook wb = new XSSFWorkbook();
 		XSSFSheet sheet = wb.createSheet(sheetName);
@@ -58,7 +58,7 @@ public class ReadWriteExcelFile {
     	   }else if(status.equals("1")) {
     		   sql = "select  NoLogDecoder, CollectorName, DeviceType, DeviceIP, LogCoder, LastSeenTime, Count, DATE_FORMAT(datemodified, '%Y-%m-%d %T') as DateModified From deviceinventoryreport where IsNormal = 1 and LogCoder IS NOT NULL";
     	   }else {
-    		   sql = "select  NoLogDecoder, CollectorName, DeviceType, DeviceIP, LogCoder, LastSeenTime, Count, DATE_FORMAT(datemodified, '%Y-%m-%d %T') as DateModified  From deviceinventoryreport and LogCoder IS NOT NULL";
+    		   sql = "select  NoLogDecoder, CollectorName, DeviceType, DeviceIP, LogCoder, LastSeenTime, Count, DATE_FORMAT(datemodified, '%Y-%m-%d %T') as DateModified  From deviceinventoryreport where LogCoder IS NOT NULL";
     	   }
     	   
     	   ps = connect.prepareStatement(sql);
@@ -146,7 +146,7 @@ public class ReadWriteExcelFile {
 		}
 	}
 	
-	public static String getExcelSheetFileConfig() throws IOException {
+	public static String getInfoByFileConfig(String info) throws IOException {
 		String path1 = Configuration.pathDEV; //"C:\\temp\\";
 		String path2 = Configuration.pathPROD; //"/apps/";
 		
@@ -163,101 +163,14 @@ public class ReadWriteExcelFile {
 	 	}
 		
 		prop.load(input);
-		sheetFileExcel = prop.getProperty("sheetExcelName"); 
+		sheetFileExcel = prop.getProperty(info); 
 		
 		return sheetFileExcel;
 	}
 	
-	public static String getSaveExcelFileConfig() throws IOException {
-		String path1 = Configuration.pathDEV; //"C:\\temp\\";
-		String path2 = Configuration.pathPROD; //"/apps/";
-		
-		Properties prop = new Properties();
-		InputStream input = null;
-	
-		String filename = Configuration.fileConfiguration;
-		String saveFileExcel = "";
-		
-		try{
-			input = new FileInputStream(path1+filename);
-	 	}catch(Exception e){
-	 		input = new FileInputStream(path2+filename);
-	 	}
-		
-		prop.load(input);
-		saveFileExcel = prop.getProperty("saveFileExcel"); 
-		
-		return saveFileExcel;
-	}
-	
-	public static String getFileLogStatConfig() throws IOException {
-		String path1 = Configuration.pathDEV; //"C:\\temp\\";
-		String path2 = Configuration.pathPROD; //"/apps/";
-		
-		Properties prop = new Properties();
-		InputStream input = null;
-	
-		String filename = Configuration.fileConfiguration;
-		String excelFile = "";
-		
-		try{
-			input = new FileInputStream(path1+filename);
-	 	}catch(Exception e){
-	 		input = new FileInputStream(path2+filename);
-	 	}
-		
-		prop.load(input);
-		excelFile = prop.getProperty("fileLogStats"); // D://Baseline.xlsx
-		
-		return excelFile;
-	}
-	
-	public static String getFileAgencyConfig() throws IOException {
-		String path1 = Configuration.pathDEV; //"C:\\temp\\";
-		String path2 = Configuration.pathPROD; //"/apps/";
-		
-		Properties prop = new Properties();
-		InputStream input = null;
-	
-		String filename = Configuration.fileConfiguration;
-		String excelFile = "";
-		
-		try{
-			input = new FileInputStream(path1+filename);
-	 	}catch(Exception e){
-	 		input = new FileInputStream(path2+filename);
-	 	}
-		
-		prop.load(input);
-		excelFile = prop.getProperty("fileAgency"); // D://Baseline.xlsx
-		
-		return excelFile;
-	}
-	
-	public static String getFileBaseLineConfig() throws IOException {
-		String path1 = Configuration.pathDEV; //"C:\\temp\\";
-		String path2 = Configuration.pathPROD; //"/apps/";
-		
-		Properties prop = new Properties();
-		InputStream input = null;
-	
-		String filename = Configuration.fileConfiguration;
-		String excelFile = "";
-		
-		try{
-			input = new FileInputStream(path1+filename);
-	 	}catch(Exception e){
-	 		input = new FileInputStream(path2+filename);
-	 	}
-		
-		prop.load(input);
-		excelFile = prop.getProperty("fileBaseLine"); // D://Baseline.xlsx
-		
-		return excelFile;
-	}
 	
 	public static void readFileAndPutBaseLineToDB(String fileName) throws ClassNotFoundException, SQLException, IOException{
-		RemoveBaseLine();
+		RemoveTableDB("baseline");
         FileInputStream fis;
         XSSFRow row;
         try {
@@ -310,12 +223,58 @@ public class ReadWriteExcelFile {
                     String device = row.getCell(2).getStringCellValue();
                     String sorce = row.getCell(3).getStringCellValue();
                     String status = row.getCell(4).getStringCellValue();
-                    String comment = row.getCell(5).getStringCellValue();
+                    
+                    
+                    String comment = "";
+                    
+                    if(null == row.getCell(5)) {
+                    	
+                    	comment = "";
+                    }else {
+                    	
+                    	comment = row.getCell(5).getStringCellValue();
+                    }
                     
                     InsertBaseLineRowInDB(no, fwd, device, sorce, status, comment);
                 }
                 
                 
+                count ++;
+            }
+            System.out.println("Values Inserted Successfully");
+
+            fis.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+	
+	public static void readFileAndPutListDeleteToDB(String fileName) throws ClassNotFoundException, SQLException, IOException, ParseException{
+		RemoveTableDB("listdelete");
+		FileInputStream fis;
+        XSSFRow row;
+        try {
+            System.out.println("-------------------------------READING THE SPREADSHEET-------------------------------------");
+            fis = new FileInputStream(fileName);
+            XSSFWorkbook workbookRead = new XSSFWorkbook(fis);
+            XSSFSheet spreadsheetRead = workbookRead.getSheetAt(0);
+            
+            Iterator< Row> rowIterator = spreadsheetRead.iterator();
+            int count = 0;
+            while (rowIterator.hasNext()) {
+                row = (XSSFRow) rowIterator.next();
+                Iterator< Cell> cellIterator = row.cellIterator();
+
+                while (cellIterator.hasNext()) {
+                    Cell cell = cellIterator.next();
+                    cell.setCellType(CellType.STRING);
+                }
+          
+                if(count > 0) {
+                	String noLogDecoder = row.getCell(0).getStringCellValue();
+                    String collectorName = row.getCell(1).getStringCellValue();
+                    InsertListDelteRowInDB(noLogDecoder, collectorName);           
+                }
                 count ++;
             }
             System.out.println("Values Inserted Successfully");
@@ -392,7 +351,8 @@ public class ReadWriteExcelFile {
 	}
 	
 	public static void readFileAndPutAgencyToDB(String fileName) throws ClassNotFoundException, SQLException, IOException, ParseException{
-        FileInputStream fis;
+        RemoveTableDB("agencyindex");
+		FileInputStream fis;
         XSSFRow row;
         try {
             System.out.println("-------------------------------READING THE SPREADSHEET-------------------------------------");
@@ -452,17 +412,45 @@ public class ReadWriteExcelFile {
         }
     }
 	
-	
-	public static void RemoveBaseLine() throws ClassNotFoundException, SQLException, IOException {
+	public static void RemoveListDeleteFromReportDB() throws ClassNotFoundException, SQLException, IOException {
 		 Connection connect = DatbaseConnection.getConnection();
 		 PreparedStatement ps = null;
 		 
 		 try {
-				ps = connect.prepareStatement("delete from BaseLine");
+				ps = connect.prepareStatement("delete from deviceinventoryreport \r\n" + 
+						"where NoLogDecoder in (select NoLogDecoder from listdelete) \r\n" + 
+						"and CollectorName in (select CollectorName from listdelete)");
 				
 				ps.executeQuery();
 				
-				System.out.println("REMOVE ALL BASELINE !!!!!!");
+				System.out.println("REMOVE ALL List Deleted !!!!!");
+				ps.close();
+				 
+				 
+			
+			} catch (SQLException e) {
+			
+				
+				e.printStackTrace();
+			}finally{
+				try {
+					connect.close();
+				} catch (SQLException e) {
+				}			
+			}
+	}
+	
+	
+	public static void RemoveTableDB(String table) throws ClassNotFoundException, SQLException, IOException {
+		 Connection connect = DatbaseConnection.getConnection();
+		 PreparedStatement ps = null;
+		 
+		 try {
+				ps = connect.prepareStatement("delete from " + table);
+				
+				ps.executeQuery();
+				
+				System.out.println("REMOVE ALL " + table + " !!!!!");
 				ps.close();
 				 
 				 
@@ -565,6 +553,31 @@ public class ReadWriteExcelFile {
 		}
 	}
 	
+	public static void InsertListDelteRowInDB(String noLogDecoder, String collectorName) throws ClassNotFoundException, SQLException, IOException {
+		 Connection connect = DatbaseConnection.getConnection();
+		 PreparedStatement ps = null;
+			
+       try {
+
+           String sql = "insert into listdelete(NoLogDecoder, CollectorName) "
+           			 + "values ( ?, ?)";
+           
+           ps = connect.prepareStatement(sql);
+           ps.setString(1, noLogDecoder);
+           ps.setString(2, collectorName);
+     
+           ps.executeUpdate();
+           connect.close();
+       } catch (SQLException e) {
+           e.printStackTrace();
+       }finally{
+			try {
+				connect.close();
+			} catch (SQLException e) {
+			}			
+		}
+	}
+	
 	
 	 public static void InsertLogStatRowInDB(String noLogDecoder, String collectorName, String deviceType, String deviceIP, String lastSeenTime, String count) throws ClassNotFoundException, SQLException, IOException {
 		 Connection connect = DatbaseConnection.getConnection();
@@ -596,7 +609,7 @@ public class ReadWriteExcelFile {
 	
 	public static void readXLSXFile() throws IOException
 	{
-		String excelFile = getFileBaseLineConfig();
+		String excelFile = getInfoByFileConfig("fileBaseLine");
 		
 		InputStream ExcelFileToRead = new FileInputStream(excelFile);
 		
@@ -633,7 +646,6 @@ public class ReadWriteExcelFile {
 					//U Can Handel Boolean, Formula, Errors
 				}
 			}
-			System.out.println();
 		}
 	
 	}
@@ -725,6 +737,7 @@ public class ReadWriteExcelFile {
 	
 	public static void saveReportToDB(boolean normal) throws ClassNotFoundException, IOException, SQLException{
 		//RemoveReport(normal);
+		//RemoveTableDB("deviceinventoryreport");
 		System.out.println("Start to Save Report !!!");
 		Connection connect = DatbaseConnection.getConnection();
 		PreparedStatement ps = null;
@@ -912,12 +925,16 @@ public class ReadWriteExcelFile {
 		//readFileAndPutBaseLineToDB(fileBaseLineToDB);
 		
 		
-		//String fileLogStatsToDB = getFileLogStatConfig();
+		//String fileLogStatsToDB = getInfoByFileConfig("fileLogStats");
 		//readFileAndPutLogStatToDB(fileLogStatsToDB);
 		
-		//String fileAgencyToDB = getFileAgencyConfig();
+		//String fileAgencyToDB = getInfoByFileConfig("fileAgency");
 		//readFileAndPutAgencyToDB(fileAgencyToDB);
-		String listOfIP = "";
+		
+		String fileListDel = getInfoByFileConfig("fileListDelete");
+		readFileAndPutListDeleteToDB(fileListDel);
+		
+		/*String listOfIP = "";
 		Map<String, String> log = getDataCompareBaseLine(false);
 		for (Map.Entry<String, String> entry : log.entrySet()) {
 			System.out.println(  " KEY "  + entry.getKey() + " VAL " + entry.getValue() );
@@ -925,7 +942,7 @@ public class ReadWriteExcelFile {
 		}
 		
 		
-		System.out.println(" listOfIP " + listOfIP);
+		System.out.println(" listOfIP " + listOfIP);*/
 		
 		//Map<String, Report> rep = getMapReport();
 		
