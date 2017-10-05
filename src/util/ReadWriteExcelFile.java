@@ -40,6 +40,94 @@ import db.LogStats;
 
 public class ReadWriteExcelFile {
 	
+	public static void writeDiffLogStatAndBaseLineReport(String reportName) throws ClassNotFoundException, SQLException, IOException, ParseException {
+		String excelFileName = getInfoByFileConfig("saveFileExcel")+reportName+".xlsx"; 
+
+		String sheetName = getInfoByFileConfig("sheetExcelLogDiffName");//"LogstatDiff2BaseLine";//name of sheet
+
+		XSSFWorkbook wb = new XSSFWorkbook();
+		XSSFSheet sheet = wb.createSheet(sheetName);
+
+		Connection connect = DatbaseConnection.getConnection();
+		PreparedStatement ps = null;
+			
+       try {
+    	   String sql = "";
+    	  
+    		   sql = "SELECT DISTINCT lg.collectorname, lg.devicetype, lg.deviceip\r\n" + 
+    		   		"FROM logstats lg\r\n" + 
+    		   		"WHERE NOT EXISTS \r\n" + 
+    		   		"  (SELECT *\r\n" + 
+    		   		"   FROM baseline bs\r\n" + 
+    		   		"   WHERE lg.collectorname = bs.forwarder AND lg.devicetype = bs.device AND lg.deviceip = bs.source)";
+    	   
+    	   
+    	   ps = connect.prepareStatement(sql);
+           
+           ResultSet resultSet = ps.executeQuery();
+           
+           ResultSetMetaData rsmd = resultSet.getMetaData();
+
+           int numOfCols = rsmd.getColumnCount();
+           int numOfRows = 0 ;
+           XSSFRow row = sheet.createRow(numOfRows);
+           XSSFCell cell = null ;
+           
+           XSSFCellStyle cellStyle = wb.createCellStyle();
+         
+           XSSFColor myColor = new XSSFColor(Color.YELLOW);
+           XSSFFont font= wb.createFont();
+           font.setBold(true);
+           font.setFontHeightInPoints((short)11);
+           font.setFontName("Tahoma");
+           
+           cellStyle.setFillForegroundColor(myColor);
+           cellStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+           cellStyle.setFont(font);
+           
+           cell = row.createCell(0);
+           cell.setCellValue("CollectorName");
+           cell.setCellStyle(cellStyle);
+           
+           cell = row.createCell(1);
+           cell.setCellValue("DeviceType");
+           cell.setCellStyle(cellStyle);
+           
+           cell = row.createCell(2);
+           cell.setCellValue("DeviceIP");
+           cell.setCellStyle(cellStyle);
+           
+           
+           while(resultSet.next()){
+        	   numOfRows ++;
+        	   row = sheet.createRow(numOfRows);
+        	   
+        	   for (int c=0;c < numOfCols; c++ ) {
+        		   cell = row.createCell(c);
+        		   cell.setCellValue(resultSet.getString(c+1));
+        	   }
+     
+        	}  
+           
+        FileOutputStream fileOut = new FileOutputStream(excelFileName);
+   		
+   		//write this workbook to an Outputstream.
+   		wb.write(fileOut);
+   		fileOut.flush();
+   		fileOut.close();
+   		
+   		
+   		System.out.println("Write Report Diff LogStat and BaseLine Completed!!!");
+       } catch (SQLException e) {
+           e.printStackTrace();
+       }finally{
+			try {
+				connect.close();
+			} catch (SQLException e) {
+			}			
+		}
+	}
+	
 	public static void writeDeviceReport(String status) throws ClassNotFoundException, SQLException, IOException, ParseException {
 		String excelFileName = getInfoByFileConfig("saveFileExcel")+status+".xlsx";  //"D:/Test.xlsx";//name of excel file
 
@@ -706,16 +794,16 @@ public class ReadWriteExcelFile {
            ps = connect.prepareStatement(sql);
            
            ResultSet resultSet = ps.executeQuery();
-           
+          
            while(resultSet.next()){
         	   log = new LogStats();
-        	   
         	   String collectorName = resultSet.getString("CollectorName");
         	   String deviceType = resultSet.getString("DeviceType");
         	   String deviceIP = resultSet.getString("DeviceIP");
         	   String count = resultSet.getString("Count");
         	   String key = collectorName+ "," + deviceType +  "," + deviceIP +  "," + count;
-        			   
+        	   
+        	 
         	   log.setCollectorName(collectorName);
         	   log.setDeviceType(deviceType);
         	   log.setDeviceIP(deviceIP);
@@ -723,6 +811,7 @@ public class ReadWriteExcelFile {
         	   
         	   map.put(key, log);
            }  
+          
        } catch (SQLException e) {
            e.printStackTrace();
        }finally{
@@ -743,29 +832,58 @@ public class ReadWriteExcelFile {
 		PreparedStatement ps = null;
 		try {
 			String listOfIP = "";
+			String listCollectName = "";
+			String listDeviceType = "";
 			
 			Map<String, String> log = getDataCompareBaseLine(normal);
 			for (Map.Entry<String, String> entry : log.entrySet()) {
+				String [] keys = entry.getKey().split(",");
+				String collectName = keys[0];
+				String deviceType = keys[1];
 				listOfIP = listOfIP + "'" + entry.getValue() + "',";
+				listCollectName = listCollectName + "'" + collectName + "',";
+				listDeviceType = listDeviceType + "'" + deviceType + "',";
+				
 			}
 			
 			listOfIP = listOfIP.substring(0, listOfIP.length()-1);
+			listCollectName = listCollectName.substring(0, listCollectName.length()-1);
+			listDeviceType = listDeviceType.substring(0, listDeviceType.length()-1);
 			
 			System.out.println("listOfIP " + listOfIP);
-		
-    	   String sql = " select lg.NoLogDecoder, lg.CollectorName, lg.DeviceType, lg.DeviceIP, \r\n" + 
-    	   		"   (select ag.logCoder from agencyindex ag where lg.NoLogDecoder = ag.NoLogDecoder and lg.CollectorName = ag.collectorName) as LogCoder, \r\n" + 
-    	   		"   lg.LastSeenTime, lg.Count" + 
-    	   		"   from logstats lg inner join baseline bs on lg.DeviceIP = bs.Source and lg.CollectorName = bs.Forwarder and lg.DeviceType = bs.Device" +
-    	   	    "   where \r\n" + 
-    	   		"	lg.DeviceIP in (" + listOfIP + ")  and bs.`Status` <> 0";
+			String sql = "";
+			
+		   if(normal) {
+			   sql = " select lg.NoLogDecoder, lg.CollectorName, lg.DeviceType, lg.DeviceIP, \r\n" + 
+		    	   		"   (select ag.logCoder from agencyindex ag where lg.NoLogDecoder = ag.NoLogDecoder and lg.CollectorName = ag.collectorName) as LogCoder, \r\n" + 
+		    	   		"   lg.LastSeenTime, lg.Count" + 
+		    	   		"   from logstats lg inner join baseline bs on lg.DeviceIP = bs.Source and lg.CollectorName = bs.Forwarder and lg.DeviceType = bs.Device" +
+		    	   	    "   where \r\n" + 
+		    	   		"	lg.DeviceIP in (" + listOfIP + ") and lg.CollectorName in ( " + listCollectName + ") and lg.DeviceType in (" +listDeviceType + ") "  + 
+		    	   		"   and bs.`Status` <> 0 and "+
+		    	   		"   EXISTS (select  lg2.CollectorName, lg2.DeviceType, lg2.DeviceIP, count(*) as Count From logstats lg2  \r\n" + 
+		    	   		"	where lg.CollectorName = lg2.CollectorName and lg.DeviceType = lg2.DeviceType and lg.DeviceIP = lg2.DeviceIP\r\n" + 
+		    	   		"    	   		group by lg2.CollectorName, lg2.DeviceType, lg2.DeviceIP having count(*) = 2)";
+		   }else {
+			   sql = " select lg.NoLogDecoder, lg.CollectorName, lg.DeviceType, lg.DeviceIP, \r\n" + 
+		    	   		"   (select ag.logCoder from agencyindex ag where lg.NoLogDecoder = ag.NoLogDecoder and lg.CollectorName = ag.collectorName) as LogCoder, \r\n" + 
+		    	   		"   lg.LastSeenTime, lg.Count" + 
+		    	   		"   from logstats lg inner join baseline bs on lg.DeviceIP = bs.Source and lg.CollectorName = bs.Forwarder and lg.DeviceType = bs.Device" +
+		    	   	    "   where \r\n" + 
+		    	   		"	lg.DeviceIP in (" + listOfIP + ") and lg.CollectorName in ( " + listCollectName + ") and lg.DeviceType in (" +listDeviceType + ") "  + 
+		    	   		"   and bs.`Status` <> 0 and "+
+		    	   		"   NOT EXISTS (select  lg2.CollectorName, lg2.DeviceType, lg2.DeviceIP, count(*) as Count From logstats lg2  \r\n" + 
+		    	   		"	where lg.CollectorName = lg2.CollectorName and lg.DeviceType = lg2.DeviceType and lg.DeviceIP = lg2.DeviceIP\r\n" + 
+		    	   		"    	   		group by lg2.CollectorName, lg2.DeviceType, lg2.DeviceIP having count(*) = 2)";
+		   }
+			 
     	   
-           ps = connect.prepareStatement(sql);
-           //ps.setString(1, listOfIP);
-           ResultSet resultSet = ps.executeQuery();
-           connect.close();
-           System.out.println("PS " + ps);
-           while(resultSet.next()){
+	           ps = connect.prepareStatement(sql);
+	           //ps.setString(1, listOfIP);
+	           ResultSet resultSet = ps.executeQuery();
+	           connect.close();
+	           System.out.println("PS " + ps);
+	           while(resultSet.next()){
         	   
         	   String noLogDecoder = resultSet.getString("NoLogDecoder");
         	   String collectorName = resultSet.getString("CollectorName");
@@ -893,7 +1011,10 @@ public class ReadWriteExcelFile {
 				String status = key[3];
 				
 				if(entry1.equals(entry2)) {
+					//if(entry1.equals("vlc-siparhlinux192.168.80.137"))
+						//System.out.println("STATUS " + status + " COUNT " + count);
 					if(!status.equals("0")) {
+						entry2 =  key[0] +"," + key[1] + "," + key[2];
 						if(count == 2) {
 							mapNormal.put(entry2, entryLog.getValue().getDeviceIP());
 						}else {
@@ -931,8 +1052,8 @@ public class ReadWriteExcelFile {
 		//String fileAgencyToDB = getInfoByFileConfig("fileAgency");
 		//readFileAndPutAgencyToDB(fileAgencyToDB);
 		
-		String fileListDel = getInfoByFileConfig("fileListDelete");
-		readFileAndPutListDeleteToDB(fileListDel);
+		//String fileListDel = getInfoByFileConfig("fileListDelete");
+		//readFileAndPutListDeleteToDB(fileListDel);
 		
 		/*String listOfIP = "";
 		Map<String, String> log = getDataCompareBaseLine(false);
@@ -946,10 +1067,17 @@ public class ReadWriteExcelFile {
 		
 		//Map<String, Report> rep = getMapReport();
 		
-		//saveReportToDB(true);
+		saveReportToDB(true);
 		//saveReportToDB(false);
+		//RemoveTableDB("deviceinventoryreport");
+		//saveReportToDB(false);
+		//RemoveListDeleteFromReportDB();
 		
-	
+		//write csv file
+		//writeDeviceReport("0");
+		//writeDeviceReport("1");
+		
+		//writeDiffLogStatAndBaseLineReport("Diff4LogstatAndBaseLine");
 	}
 
 }
