@@ -37,7 +37,10 @@ public class Device {
 			//write csv file
 			rd.writeDeviceReport("1");
 			rd.writeDeviceReport("0");
-			rd.writeDeviceReport("ALL");
+			//rd.writeDeviceReport("ALL");
+			
+			//write csv for Diff4LogstatAndBaseLine
+			rd.writeDiffLogStatAndBaseLineReport("Diff4LogstatAndBaseLine");
 			
 		}catch(Exception ex) {
 			ex.printStackTrace();
